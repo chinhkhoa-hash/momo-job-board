@@ -15,7 +15,7 @@ type Job = {
 const PHONE_RE = /^(0|\+84)(3|5|7|8|9)\d{8}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CV_TYPES = [".pdf", ".doc", ".docx"];
-const CV_MAX_MB = 5;
+const CV_MAX_MB = 2;
 const CONTACT_TIMES = ["Bất kỳ lúc nào", "Buổi sáng (8h–12h)", "Buổi chiều (13h–17h)", "Buổi tối (18h–21h)"];
 /** Câu đồng ý theo yêu cầu Legal (sheet Tracking, request #9). */
 const CONSENT =
@@ -27,7 +27,7 @@ export default function ApplyPanel({ job }: { job: Job }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [errors, setErrors] = useState<Errors>({});
   const [sending, setSending] = useState(false);
-  const [done, setDone] = useState<null | { demo: boolean }>(null);
+  const [done, setDone] = useState<null | { demo: boolean; duplicate: boolean }>(null);
   const [shared, setShared] = useState<string | null>(null);
 
   async function share() {
@@ -75,22 +75,18 @@ export default function ApplyPanel({ job }: { job: Job }) {
 
     setSending(true);
     try {
-      const res = await fetch("/api/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobId: job.id,
-          fullName,
-          phone,
-          email: email || undefined,
-          contactTime: String(fd.get("contactTime") ?? ""),
-          cvFileName: hasCv ? cv!.name : undefined,
-          consent: true,
-        }),
-      });
+      const body = new FormData();
+      body.set("jobId", job.id);
+      body.set("fullName", fullName);
+      body.set("phone", phone);
+      if (email) body.set("email", email);
+      body.set("contactTime", String(fd.get("contactTime") ?? ""));
+      if (hasCv) body.set("cv", cv!);
+      body.set("consent", "true");
+      const res = await fetch("/api/apply", { method: "POST", body });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "Chưa gửi được hồ sơ.");
-      setDone({ demo: Boolean(data.demo) });
+      setDone({ demo: Boolean(data.demo), duplicate: Boolean(data.duplicate) });
     } catch (err) {
       setErrors({ form: `${(err as Error).message} Kiểm tra kết nối mạng rồi thử lại.` });
     } finally {
@@ -131,11 +127,12 @@ export default function ApplyPanel({ job }: { job: Job }) {
       <dialog ref={dialog} className="ap-dialog" aria-labelledby="ap-title" onClose={() => setErrors({})}>
         {done ? (
           <div className="ap-done">
-            <h2 id="ap-title">Đã gửi hồ sơ</h2>
+            <h2 id="ap-title">{done.duplicate ? "Bạn đã ứng tuyển vị trí này" : "Đã gửi hồ sơ"}</h2>
             <p>
               {job.brandName} sẽ liên hệ bạn trong 7 ngày làm việc nếu hồ sơ phù hợp với vị trí {job.title.toLowerCase()}.
             </p>
-            {done.demo && <p className="ap-demo">Đây là bản demo nên hồ sơ không được chuyển tới nhà tuyển dụng.</p>}
+            {done.duplicate && <p>Hồ sơ gửi trong 24 giờ qua vẫn được giữ nguyên, bạn không cần gửi lại.</p>}
+            {done.demo && <p className="ap-demo">Bản demo: hồ sơ được lưu trong cổng quản lý demo, không tới nhà tuyển dụng thật.</p>}
             <button className="btn btn-primary" onClick={() => dialog.current?.close()}>Xong</button>
           </div>
         ) : (
