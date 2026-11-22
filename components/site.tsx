@@ -23,7 +23,7 @@ export function DemoNotice({ note }: { note?: string }) {
   return (
     <div className="s-demo" role="note">
       <div className="s-wrap">
-        {note ?? "Bản demo: tin tuyển dụng là dữ liệu minh hoạ, hồ sơ gửi đi không chuyển tới nhà tuyển dụng."}
+        {note ?? "Bản demo: tin tuyển dụng là dữ liệu minh hoạ. Hồ sơ gửi đi chỉ vào cổng quản lý demo, không tới nhà tuyển dụng thật."}
       </div>
     </div>
   );

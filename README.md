@@ -1,6 +1,6 @@
-# MoMo Jobs – trang việc làm cho ứng viên + công cụ chuyển hồ sơ sang iPOS
+# MoMo Jobs – trang việc làm, cổng quản lý tuyển dụng và công cụ chuyển hồ sơ sang iPOS
 
-Project gồm 2 phần, deploy chung một lần lên Vercel:
+Project gồm 3 phần dùng chung một kho dữ liệu, deploy một lần lên Vercel:
 
 | Đường dẫn | Dành cho | Nội dung |
 | --- | --- | --- |
@@ -8,6 +8,7 @@ Project gồm 2 phần, deploy chung một lần lên Vercel:
 | `/jobs/[id]` | Ứng viên | Chi tiết tin, địa điểm + chỉ đường, ứng tuyển (form hoặc link ngoài), chia sẻ, lối sang Lộ trình nghề và Đối chiếu CV |
 | `/brand/[slug]` | Ứng viên | Trang tuyển dụng của từng thương hiệu (giữ nguyên slug như trang cũ) |
 | `/faq` | Ứng viên | Câu hỏi thường gặp (nội dung từ sheet Tracking) |
+| `/portal` | Merchant + MoMo vận hành (đăng nhập) | Đăng/sửa/tạm dừng tin, nhận hồ sơ và CV, cập nhật trạng thái tới khi đi làm, theo dõi theo thương hiệu |
 | `/relay` | Nội bộ (có mật khẩu) | Công cụ đẩy hồ sơ sang iPOS HRM, mô tả bên dưới |
 
 `/` tự chuyển sang `/jobs`.
@@ -20,14 +21,50 @@ form ứng tuyển (họ tên, SĐT, email và CV tuỳ chọn, thời gian liê
 ứng tuyển qua link ngoài khi tin dùng `directUrl`, khối "Trang tuyển dụng của thương hiệu", nút chia sẻ.
 Bộ lọc nằm trên URL nên gửi link là người nhận thấy đúng kết quả.
 
-- **Dữ liệu:** mặc định là dữ liệu mẫu (17 tin, 8 thương hiệu đối tác). Đặt `JOBS_SOURCE_URL` để đọc tin thật từ
+- **Dữ liệu:** mặc định là các tin đang tuyển trong `/portal` (lần đầu tự nạp dữ liệu mẫu: 17 tin, 8 thương hiệu đối tác). Đặt `JOBS_SOURCE_URL` để đọc tin thật từ
   API cũ `GET /api/worker/jobs`; phần chuyển đổi đọc theo tên cột trong Prisma schema và **cần kiểm tra lại khi có source code**.
   Đọc lỗi thì trang tự quay về dữ liệu mẫu và hiện thông báo.
-- **Ứng tuyển:** bản demo chỉ kiểm tra dữ liệu rồi báo thành công, **không lưu và không gửi đi đâu** (trang có ghi rõ).
-  Khi nối thật, sửa `app/api/apply/route.ts` để chuyển tiếp sang API nộp hồ sơ của hệ thống cũ.
+- **Ứng tuyển:** hồ sơ và CV được lưu vào kho và hiện ngay trong `/portal`. Cùng SĐT nộp lại cùng tin trong 24 giờ thì không tạo trùng.
 - **Font:** copy `MoMoTrustSans-Regular.otf`, `MoMoTrustSans-Medium.otf`, `MoMoTrustDisplay.otf` từ repo cũ vào `public/fonts/`
   là trang dùng font MoMo; chưa có thì dùng Be Vietnam Pro.
 - **Logo:** chưa có ảnh nên hiển thị chữ viết tắt trên màu thương hiệu; dữ liệu thật có `logoUrl` thì tự dùng ảnh.
+
+## Cổng quản lý tuyển dụng (`/portal`)
+
+Luồng khép kín: merchant đăng tin ở `/portal` → tin hiện ngay ở `/jobs` → ứng viên nộp hồ sơ (kèm CV) → hồ sơ về `/portal`
+→ merchant gọi, cập nhật trạng thái tới **Đã đi làm** → MoMo theo dõi tỉ lệ đi làm theo từng thương hiệu.
+
+**Hai vai trò**
+- **Merchant**: chỉ thấy tin và hồ sơ của thương hiệu mình (kể cả khi đoán link hay gọi thẳng API).
+- **MoMo vận hành (admin)**: thấy mọi thương hiệu, đăng tin hộ, tạm dừng tin vi phạm kèm lý do (merchant thấy lý do),
+  xem bảng theo thương hiệu: tỉ lệ đã cập nhật trạng thái, hồ sơ quá hạn, phỏng vấn, đi làm. Có lối sang `/relay`.
+
+**Tính năng**
+- Tổng quan: tin đang tuyển, hồ sơ mới 7 ngày, **hồ sơ chưa liên hệ sau 7 ngày** (cam kết với ứng viên trong FAQ), số người đã đi làm,
+  phễu Mới nộp → Đang xem xét → Đã phỏng vấn → Đã nhận → Đã đi làm.
+- Tin tuyển dụng: lọc theo trạng thái; form đăng tin (cửa hàng, lương theo giờ/ca/tháng/thoả thuận, mô tả từng dòng, bắt buộc email/CV,
+  nhận hồ sơ qua link ngoài); lưu nháp / đăng / tạm dừng / đóng / mở lại.
+- Ứng viên: tìm theo tên, SĐT, mã `MJ-…` (ApplyID để đối soát); lọc trạng thái, tin, thương hiệu, quá hạn; tải CSV mở được bằng Excel.
+- Hồ sơ: số điện thoại che sẵn, bấm mới hiện và **có ghi log ai đã xem**; tải CV; đổi trạng thái theo bước hợp lệ
+  (Không phù hợp cần lý do, Đã đi làm cần ngày bắt đầu); lịch sử đầy đủ ai đổi gì, lúc nào.
+- Trạng thái giữ đúng enum của hệ thống cũ (`new_applied`, `reviewing`, `interviewed`, `accepted`, `rejected`, `not_reachable`, `wrong_phone`),
+  thêm `onboarded` (đã đi làm) và `withdrawn` (ứng viên rút).
+
+**Dữ liệu**
+- Chưa cấu hình gì: lưu trong bộ nhớ server và tự nạp dữ liệu mẫu (17 tin, ~57 hồ sơ). Trên Vercel cách này **không đáng tin**:
+  mỗi lần function khởi động lại hoặc chạy nhiều bản là dữ liệu khác nhau.
+- Để lưu thật: Vercel → project → **Storage** (hoặc Marketplace) → thêm **Upstash for Redis** → Connect → Redeploy.
+  Vercel tự thêm biến môi trường, không cần sửa code. Gói miễn phí đủ cho demo.
+- CV lưu trong Redis, tối đa 2 MB/file. Nếu gói Upstash giới hạn kích thước request thấp hơn, giảm `CV_MAX_BYTES` trong `lib/portal/service.ts`.
+- Tài khoản demo (mật khẩu `demo123`): `momo_admin`, và mỗi thương hiệu một tài khoản `<slug>_demo`, ví dụ `katinat_demo`.
+  Admin có nút "Nạp lại dữ liệu mẫu" khi ở chế độ demo.
+
+**Trước khi dùng thật**
+- Đặt `PORTAL_USERS` + `SESSION_SECRET` để tắt tài khoản demo. Đây là đăng nhập tối giản cho giai đoạn thử nghiệm;
+  dùng lâu dài nên chuyển sang SSO hoặc hệ thống tài khoản của MoMo.
+- Thay dữ liệu mẫu bằng thương hiệu và cửa hàng thật (đồng bộ từ iPOS qua Partner API).
+- Hồ sơ trong `/portal` và hồ sơ chuyển sang iPOS (`/relay`) hiện là hai luồng riêng. Bước tiếp theo nên là: hồ sơ nộp vào tin đồng bộ từ iPOS
+  thì đẩy webhook ngay khi nộp, và trạng thái iPOS cập nhật về lại `/portal`.
 
 ---
 
@@ -112,7 +149,12 @@ Gói Pro có thể đổi thành `*/10 * * * *`.
 app/jobs/                 trang tìm việc, chi tiết tin, form ứng tuyển
 app/brand/[slug]/         trang thương hiệu
 app/faq/                  câu hỏi thường gặp
-app/api/apply/route.ts    nhận hồ sơ (demo)
+app/api/apply/route.ts    nhận hồ sơ + CV từ trang ứng viên
+app/portal/               cổng quản lý: đăng nhập, tổng quan, tin, ứng viên
+app/portal/actions.ts     các thao tác ghi (server actions), đều kiểm tra quyền
+app/api/portal/           tải CV, xuất CSV (cần đăng nhập)
+lib/portal/               vai trò, trạng thái, quy tắc nghiệp vụ, đăng nhập
+lib/store/                kho dữ liệu (Upstash Redis hoặc bộ nhớ) + dữ liệu mẫu
 app/site.css              giao diện trang ứng viên
 components/               header, thẻ việc, logo thương hiệu
 lib/jobs/                 dữ liệu mẫu, nguồn dữ liệu, bộ lọc/sắp xếp

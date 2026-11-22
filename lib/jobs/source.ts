@@ -1,9 +1,11 @@
-import { SAMPLE_BRANDS, SAMPLE_JOBS } from "./sample";
+import { SAMPLE_BRANDS } from "./sample";
+import { todayVN } from "./format";
+import { listJobs } from "../store/db";
 import type { Brand, EmploymentType, JobLocation, JobPost, JobWithBrand, SalaryType } from "./types";
 
 /**
  * Nguồn dữ liệu tin tuyển dụng.
- * - Mặc định: dữ liệu mẫu (chế độ demo).
+ * - Mặc định: tin đang tuyển trong kho của cổng quản lý (/portal). Kho trống thì tự nạp dữ liệu mẫu.
  * - Đặt JOBS_SOURCE_URL (vd https://merchant-job-board.vercel.app): đọc từ API cũ GET /api/worker/jobs.
  *   Cấu trúc response của API cũ chưa có tài liệu, nên phần chuyển đổi bên dưới đọc theo tên cột
  *   trong Prisma schema (Handover mục 4) và tự quay về dữ liệu mẫu nếu đọc không được.
@@ -18,12 +20,11 @@ function withBrands(jobs: JobPost[], brands: Brand[]): JobWithBrand[] {
   });
 }
 
-const sampleCatalog = (note?: string): Catalog => ({
-  source: "sample",
-  brands: SAMPLE_BRANDS,
-  jobs: withBrands(SAMPLE_JOBS, SAMPLE_BRANDS),
-  note,
-});
+async function localCatalog(note?: string): Promise<Catalog> {
+  const today = todayVN();
+  const live = (await listJobs()).filter((j) => j.status === "live" && j.deadline >= today);
+  return { source: "sample", brands: SAMPLE_BRANDS, jobs: withBrands(live, SAMPLE_BRANDS), note };
+}
 
 export const slugify = (s: string) =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase()
@@ -99,12 +100,12 @@ async function remoteCatalog(base: string): Promise<Catalog> {
 
 export async function getCatalog(): Promise<Catalog> {
   const base = process.env.JOBS_SOURCE_URL;
-  if (!base) return sampleCatalog();
+  if (!base) return localCatalog();
   try {
     return await remoteCatalog(base);
   } catch (e) {
     console.error("JOBS_SOURCE_URL:", (e as Error).message);
-    return sampleCatalog(`Không đọc được dữ liệu thật (${(e as Error).message}), đang hiển thị dữ liệu mẫu.`);
+    return localCatalog(`Không đọc được dữ liệu thật (${(e as Error).message}), đang hiển thị dữ liệu mẫu.`);
   }
 }
 

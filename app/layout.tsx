@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./site.css";
+import "./portal.css";
 
 export const metadata: Metadata = {
   title: { default: "MoMo Jobs – Tìm việc làm gần bạn", template: "%s · MoMo Jobs" },
