@@ -1,9 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-/** Basic auth cho dashboard và API khi đặt DASHBOARD_PASSWORD. Route cron dùng CRON_SECRET riêng. */
+/**
+ * Basic auth cho công cụ nội bộ (/relay và /api/relay) khi đặt DASHBOARD_PASSWORD.
+ * Trang việc làm cho ứng viên (/jobs, /brand, /faq) luôn public.
+ * Route cron dùng CRON_SECRET riêng nên không đi qua đây.
+ */
 export function middleware(req: NextRequest) {
   const password = process.env.DASHBOARD_PASSWORD;
-  if (!password || req.nextUrl.pathname.startsWith("/api/cron/")) return NextResponse.next();
+  if (!password) return NextResponse.next();
 
   const header = req.headers.get("authorization") ?? "";
   if (header.startsWith("Basic ")) {
@@ -15,10 +19,10 @@ export function middleware(req: NextRequest) {
   }
   return new NextResponse("Cần đăng nhập", {
     status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="momo-ipos-relay", charset="UTF-8"' },
+    headers: { "WWW-Authenticate": 'Basic realm="momo-jobs-internal", charset="UTF-8"' },
   });
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/relay", "/relay/:path*", "/api/relay", "/api/relay/:path*"],
 };
