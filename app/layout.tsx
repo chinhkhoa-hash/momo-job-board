@@ -1,11 +1,13 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./site.css";
 
 export const metadata: Metadata = {
-  title: "Chuyển hồ sơ MoMo Jobs → iPOS HRM",
-  description: "Đẩy hồ sơ ứng viên từ Merchant Job Board sang iPOS HRM qua webhook.",
-  robots: { index: false, follow: false },
+  title: { default: "MoMo Jobs – Tìm việc làm gần bạn", template: "%s · MoMo Jobs" },
+  description: "Tìm việc bán thời gian, toàn thời gian, theo ca tại các thương hiệu F&B và bán lẻ. Ứng tuyển nhanh, không mất phí.",
 };
+
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#a50064" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -1,4 +1,37 @@
-# Chuyển hồ sơ MoMo Jobs → iPOS HRM
+# MoMo Jobs – trang việc làm cho ứng viên + công cụ chuyển hồ sơ sang iPOS
+
+Project gồm 2 phần, deploy chung một lần lên Vercel:
+
+| Đường dẫn | Dành cho | Nội dung |
+| --- | --- | --- |
+| `/jobs` | Ứng viên (public) | Tìm việc theo từ khoá, tỉnh/thành, quận (tối đa 5), loại hình, mức lương, thương hiệu; sắp xếp Đề xuất / Mới nhất / Cũ nhất / Lương cao / Gần tôi |
+| `/jobs/[id]` | Ứng viên | Chi tiết tin, địa điểm + chỉ đường, ứng tuyển (form hoặc link ngoài), chia sẻ, lối sang Lộ trình nghề và Đối chiếu CV |
+| `/brand/[slug]` | Ứng viên | Trang tuyển dụng của từng thương hiệu (giữ nguyên slug như trang cũ) |
+| `/faq` | Ứng viên | Câu hỏi thường gặp (nội dung từ sheet Tracking) |
+| `/relay` | Nội bộ (có mật khẩu) | Công cụ đẩy hồ sơ sang iPOS HRM, mô tả bên dưới |
+
+`/` tự chuyển sang `/jobs`.
+
+## Trang việc làm
+
+Giữ lại gần như toàn bộ tính năng của trang `/jobs` cũ (theo tài liệu Handover): bộ lọc tỉnh/quận/loại hình/lương/thương hiệu,
+sắp xếp "Đề xuất" theo thứ tự merchant tự sắp, "Xem thêm", lọc theo vị trí GPS, badge "Đã xác thực iPOS",
+form ứng tuyển (họ tên, SĐT, email và CV tuỳ chọn, thời gian liên lạc) với câu đồng ý của Legal,
+ứng tuyển qua link ngoài khi tin dùng `directUrl`, khối "Trang tuyển dụng của thương hiệu", nút chia sẻ.
+Bộ lọc nằm trên URL nên gửi link là người nhận thấy đúng kết quả.
+
+- **Dữ liệu:** mặc định là dữ liệu mẫu (17 tin, 8 thương hiệu đối tác). Đặt `JOBS_SOURCE_URL` để đọc tin thật từ
+  API cũ `GET /api/worker/jobs`; phần chuyển đổi đọc theo tên cột trong Prisma schema và **cần kiểm tra lại khi có source code**.
+  Đọc lỗi thì trang tự quay về dữ liệu mẫu và hiện thông báo.
+- **Ứng tuyển:** bản demo chỉ kiểm tra dữ liệu rồi báo thành công, **không lưu và không gửi đi đâu** (trang có ghi rõ).
+  Khi nối thật, sửa `app/api/apply/route.ts` để chuyển tiếp sang API nộp hồ sơ của hệ thống cũ.
+- **Font:** copy `MoMoTrustSans-Regular.otf`, `MoMoTrustSans-Medium.otf`, `MoMoTrustDisplay.otf` từ repo cũ vào `public/fonts/`
+  là trang dùng font MoMo; chưa có thì dùng Be Vietnam Pro.
+- **Logo:** chưa có ảnh nên hiển thị chữ viết tắt trên màu thương hiệu; dữ liệu thật có `logoUrl` thì tự dùng ảnh.
+
+---
+
+# Công cụ chuyển hồ sơ MoMo Jobs → iPOS HRM (`/relay`)
 
 Dashboard và dịch vụ nền đẩy hồ sơ ứng viên từ Merchant Job Board sang iPOS HRM.
 Đây là bản demo cho request #26 ("Webhook khi có user mới apply"), chạy độc lập với repo chính
@@ -28,7 +61,7 @@ Không cần biến môi trường nào: thiếu key là app tự chạy **chế
 
 ```bash
 npm install
-npm run dev     # mở http://localhost:3000
+npm run dev     # mở http://localhost:3000/jobs (ứng viên) hoặc /relay (nội bộ)
 ```
 
 Dữ liệu demo nằm trong bộ nhớ server, tự reset khi Vercel khởi động lại function; có nút "Đặt lại dữ liệu demo".
@@ -47,7 +80,9 @@ Dữ liệu demo nằm trong bộ nhớ server, tự reset khi Vercel khởi đ�
 | `HRM_BASE_URL`, `HRM_API_KEY` | Có | HRM cấp riêng cho từng môi trường |
 | `RELAY_JOBS` | Có | `merchantExternalId:jobExternalId,...` — Partner API chưa có endpoint liệt kê tin |
 | `RELAY_MARK_IMPORTED` | Không | Mặc định `true` |
-| `DASHBOARD_PASSWORD` | Có | Bật đăng nhập cho dashboard. Thiếu biến này app sẽ khoá dữ liệu thật |
+| `DASHBOARD_PASSWORD` | Có | Bật đăng nhập cho `/relay`. Thiếu biến này app sẽ khoá dữ liệu thật. Trang ứng viên luôn public |
+| `JOBS_SOURCE_URL` | Không | Domain sản phẩm cũ để đọc tin thật cho trang ứng viên |
+| `CAREER_HUB_URL` | Không | Nơi mở Lộ trình nghề / Đối chiếu CV |
 | `CRON_SECRET` | Có (để chạy tự động) | Vercel tự gửi kèm khi gọi cron |
 
 Thiếu bất kỳ key nào trong `PARTNER_API_KEY`, `HRM_API_KEY`, `HRM_BASE_URL` thì app vẫn ở chế độ demo.
@@ -74,8 +109,14 @@ Gói Pro có thể đổi thành `*/10 * * * *`.
 ## Cấu trúc
 
 ```
-app/page.tsx              trang chính (server): kiểm tra cấu hình, chạy thử
-app/dashboard.tsx         giao diện
+app/jobs/                 trang tìm việc, chi tiết tin, form ứng tuyển
+app/brand/[slug]/         trang thương hiệu
+app/faq/                  câu hỏi thường gặp
+app/api/apply/route.ts    nhận hồ sơ (demo)
+app/site.css              giao diện trang ứng viên
+components/               header, thẻ việc, logo thương hiệu
+lib/jobs/                 dữ liệu mẫu, nguồn dữ liệu, bộ lọc/sắp xếp
+app/relay/                công cụ chuyển hồ sơ (nội bộ)
 app/api/relay/route.ts    GET = kiểm tra thử, POST = gửi
 app/api/cron/relay        Vercel Cron gọi định kỳ
 lib/relay.ts              luồng chính: lấy hồ sơ → kiểm tra → gửi → đánh dấu
